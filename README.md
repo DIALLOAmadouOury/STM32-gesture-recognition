@@ -1,15 +1,15 @@
-# 🚀 Gesture_IA – Reconnaissance de gestes sur STM32 (TinyML)
+# Gesture_IA – Reconnaissance de gestes sur STM32 (TinyML)
 
 Ce projet implémente une solution complète de **TinyML** (IA embarquée) pour la détection et la classification de gestes dynamiques (lettres **Z**, **L**, **O**) et la distinction du **BRUIT**. Le modèle s'exécute en temps réel sur un microcontrôleur STM32 sans aucune dépendance externe (Cloud ou PC).
 
 ---
 
-## 💡 Principe de fonctionnement
+## Principe de fonctionnement
 
 Le système capture le mouvement via un accéléromètre, traite la fenêtre temporelle, puis prédit le geste à l'aide d'un réseau de neurones compressé.
 
 **Chaîne de traitement :**
-`Accéléromètre (LSM6DSL)` ➡️ `Prétraitement (Normalisation)` ➡️ `Inférence (MLP INT8)` ➡️ `UART` ➡️ `Dashboard Python`
+`Accéléromètre (LSM6DSL)` -> `Prétraitement (Normalisation)` -> `Inférence (MLP INT8)` -> `UART` -> `Dashboard Python`
 
 ---
 
@@ -25,7 +25,7 @@ Le système capture le mouvement via un accéléromètre, traite la fenêtre tem
 
 ## 📊 Modèle & Dataset
 
-- **Architecture :** MLP (Multi-Layer Perceptron) optimisé : 300 entrées ➡️ 16 neurones ➡️ 8 neurones ➡️ 4 sorties.
+- **Architecture :** MLP (Multi-Layer Perceptron) optimisé : 300 entrées -> 16 neurones -> 8 neurones -> 4 sorties.
 - **Données :** Dataset propriétaire de **120 enregistrements** (30 par classe).
 - **Acquisition :** Fenêtre de 2 secondes à 50 Hz (100 échantillons par axe).
 - **Performance :** Précision de validation de **95,83 %**.
