@@ -13,7 +13,7 @@ Le système capture le mouvement via un accéléromètre, traite la fenêtre tem
 
 ---
 
-## 🛠️ Stack technique
+## Stack technique
 
 - **Microcontrôleur :** STM32 B-L475E-IOT01A (Cortex-M4 @80MHz)
 - **Capteur :** LSM6DSL (accéléromètre 3 axes, liaison I2C)
@@ -23,7 +23,7 @@ Le système capture le mouvement via un accéléromètre, traite la fenêtre tem
 
 ---
 
-## 📊 Modèle & Dataset
+## Modèle & Dataset
 
 - **Architecture :** MLP (Multi-Layer Perceptron) optimisé : 300 entrées -> 16 neurones -> 8 neurones -> 4 sorties.
 - **Données :** Dataset propriétaire de **120 enregistrements** (30 par classe).
@@ -32,7 +32,7 @@ Le système capture le mouvement via un accéléromètre, traite la fenêtre tem
 
 ---
 
-## ⚡ Contraintes & Optimisations Edge AI
+## Contraintes & Optimisations Edge AI
 
 Grâce à la quantification post-entraînement (INT8), le modèle présente une empreinte extrêmement réduite :
 
@@ -42,7 +42,7 @@ Grâce à la quantification post-entraînement (INT8), le modèle présente une 
 
 ---
 
-## 📂 Structure du projet
+## Structure du projet
 
 - `stm32_firmware/` : Code source C (Core, Pilotes I2C, Logique d'acquisition, Inférence).
 - `model_training/` : Notebook Jupyter (`.ipynb`), Dataset et modèle quantifié (`.tflite`).
