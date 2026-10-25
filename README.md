@@ -1,29 +1,26 @@
-# Reconnaissance de gestes sur STM32L475 — TinyML et systèmes embarqués
+# Reconnaissance de gestes sur STM32L475 — Du capteur à l'IA embarquée
 
-**C embarqué · STM32 HAL · LSM6DSL / I²C · Traitement du signal · TinyML / X-CUBE-AI · UART · Python**
+**STM32L475 · C embarqué · LSM6DSL / I²C · Acquisition et traitement du signal · TensorFlow · X-CUBE-AI · UART · Python**
 
-Ce projet personnel réalise la **reconnaissance des gestes L, O et Z**, avec une quatrième classe **BRUIT**, en combinant l'acquisition de mouvements, le traitement de données inertielles, l'entraînement d'un réseau de neurones et son déploiement sur **STM32L475**.
+## Pourquoi ce projet ?
 
-Le **firmware développé en C** prend en charge le pilote I²C, l'acquisition des signaux, leur normalisation, l'inférence sur le microcontrôleur et la communication UART. Le projet comprend aussi la **conception du modèle sous TensorFlow/Keras**, son intégration avec X-CUBE-AI et une **interface Python/Tkinter** pour visualiser les résultats.
+L'idée était de créer une **interface capable de reconnaître un mouvement de la main sans envoyer les mesures à un service distant**. Pour cela, il fallait résoudre plusieurs problèmes : enregistrer un mouvement avec un capteur inertiel, transformer cette série de mesures en données exploitables, entraîner un classifieur puis faire fonctionner la prédiction directement sur un microcontrôleur.
 
-**[▶ Vidéo de démonstration (MP4)](https://raw.githubusercontent.com/DIALLOAmadouOury/STM32-gesture-recognition/main/assets/video_demo.mp4)** · **[Code embarqué C](stm32_firmware/Core/Src/gesture_ia.c)** · **[Notebook IA](model_training/Copie%20de%20gesture_ML.ipynb)**
+Le résultat est un **prototype de reconnaissance de gestes dynamiques** : la carte STM32 distingue les lettres **L, O et Z** et une quatrième catégorie **BRUIT**. **L'acquisition et l'inférence se déroulent sur le STM32** ; l'ordinateur affiche simplement la classe reconnue et le score de sortie du réseau.
 
-## Les compétences techniques mises en œuvre
+Ce projet associe du **développement firmware en C** (pilote I²C, acquisition, buffers, UART), du **traitement de signaux inertiels**, de l'**apprentissage automatique** (TensorFlow/Keras), de l'**intégration TinyML** (X-CUBE-AI) et une **interface Python**.
 
-| Domaine | Réalisation concrète |
-| --- | --- |
-| **Driver de capteur / communication I²C** | [`lsm6dsl.c`](stm32_firmware/Core/Src/lsm6dsl.c) : accès aux registres `WHO_AM_I`, `CTRL1_XL`, lecture des six octets d'accélération et conversion des valeurs signées 16 bits en `g` |
-| **Acquisition et traitement en C** | [`gesture_ia.c`](stm32_firmware/Core/Src/gesture_ia.c) : déclenchement par **GPIO PC13**, fenêtre de **100 mesures sur 3 axes**, cadence visée de **20 ms**, normalisation et remplissage d'un tenseur de **300 Float32** |
-| **Intégration d'un modèle dans le firmware** | [`gesture_ia.c`](stm32_firmware/Core/Src/gesture_ia.c) : initialisation du runtime X-CUBE-AI, buffer d'activation statique aligné sur **32 octets**, appel à `ai_network_run()` et sélection de la classe de score maximal |
-| **Communication UART** | [`main.c`](stm32_firmware/Core/Src/main.c) et [`gesture_ia.c`](stm32_firmware/Core/Src/gesture_ia.c) : **UART1 à 115 200 bauds**, redirection de `printf` et messages `START`, `END_ACQ`, `RES:CLASSE:SCORE` |
-| **Intégration applicative STM32** | [`main.c`](stm32_firmware/Core/Src/main.c) : initialisation HAL, I²C2, USART1, GPIO et boucle principale appelant `Gesture_Task()` |
-| **Outil de supervision** | [`gui_dashboard.py`](pc_scripts/gui_dashboard.py) : lecture série PySerial et interface Tkinter — **côté PC**, distinct du firmware C |
+**[▶ Voir la vidéo de démonstration](https://raw.githubusercontent.com/DIALLOAmadouOury/STM32-gesture-recognition/main/assets/video_demo.mp4)** · **[Explorer le firmware C](stm32_firmware/Core/Src/)** · **[Consulter le notebook d'entraînement](model_training/Copie%20de%20gesture_ML.ipynb)**
 
-**L'enjeu d'intégration :** relier acquisition et traitement du signal en C, prétraitement cohérent avec l'entraînement Python, gestion des buffers d'inférence, puis affichage sur PC sans y déporter la classification.
+## Comment fonctionne la reconnaissance ?
 
-Ici, la logique utilise une **boucle principale et des attentes basées sur `HAL_GetTick()`**, pas FreeRTOS. L'intervalle de 20 ms est une **cible logicielle** et non une cadence vérifiée à l'oscilloscope.
+L'utilisateur **appuie sur le bouton de la carte**, puis trace un geste dans l'espace. Le capteur **LSM6DSL** mesure les accélérations selon trois axes. Le firmware constitue une fenêtre de **100 triplets X/Y/Z** en visant un intervalle de **20 ms entre lectures**, soit environ **deux secondes** de mouvement.
 
-## Le système en quelques chiffres
+Ces **300 valeurs** sont normalisées en C et transmises à un petit réseau de neurones intégré au STM32. Le programme choisit la classe dont le score de sortie est le plus élevé, puis envoie la prédiction à l'ordinateur par **UART**. L'application **Tkinter/PySerial** affiche alors le geste reconnu et son score.
+
+L'objectif technique est de relier **mesure physique, préparation des données, modèle IA et application embarquée**, sans confier la classification au PC.
+
+## Architecture et caractéristiques du prototype
 
 | Cible | Acquisition | Modèle | Calcul embarqué |
 | :--- | :--- | :--- | :--- |
@@ -45,7 +42,22 @@ Réseau MLP embarqué avec X-CUBE-AI → BRUIT / L / O / Z
 Application Python / Tkinter : geste prédit + score
 ```
 
-## Les choix techniques au cœur du projet
+## Ce que j'ai développé et intégré
+
+| Domaine | Réalisation concrète |
+| --- | --- |
+| **Driver de capteur / communication I²C** | [`lsm6dsl.c`](stm32_firmware/Core/Src/lsm6dsl.c) : accès aux registres `WHO_AM_I`, `CTRL1_XL`, lecture des six octets d'accélération et conversion des valeurs signées 16 bits en `g` |
+| **Acquisition et traitement en C** | [`gesture_ia.c`](stm32_firmware/Core/Src/gesture_ia.c) : déclenchement par **GPIO PC13**, fenêtre de **100 mesures sur 3 axes**, cadence visée de **20 ms**, normalisation et remplissage d'un tenseur de **300 Float32** |
+| **Intégration d'un modèle dans le firmware** | [`gesture_ia.c`](stm32_firmware/Core/Src/gesture_ia.c) : initialisation du runtime X-CUBE-AI, buffer d'activation statique aligné sur **32 octets**, appel à `ai_network_run()` et sélection de la classe de score maximal |
+| **Communication UART** | [`main.c`](stm32_firmware/Core/Src/main.c) et [`gesture_ia.c`](stm32_firmware/Core/Src/gesture_ia.c) : **UART1 à 115 200 bauds**, redirection de `printf` et messages `START`, `END_ACQ`, `RES:CLASSE:SCORE` |
+| **Intégration applicative STM32** | [`main.c`](stm32_firmware/Core/Src/main.c) : initialisation HAL, I²C2, USART1, GPIO et boucle principale appelant `Gesture_Task()` |
+| **Outil de supervision** | [`gui_dashboard.py`](pc_scripts/gui_dashboard.py) : lecture série PySerial et interface Tkinter — **côté PC**, distinct du firmware C |
+
+**L'enjeu d'intégration :** relier acquisition et traitement du signal en C, prétraitement cohérent avec l'entraînement Python, gestion des buffers d'inférence, puis affichage sur PC sans y déporter la classification.
+
+Ici, la logique utilise une **boucle principale et des attentes basées sur `HAL_GetTick()`**, pas FreeRTOS. L'intervalle de 20 ms est une **cible logicielle** et non une cadence vérifiée à l'oscilloscope.
+
+## Choix d'implémentation et détails techniques
 
 ### 1. Acquisition inertielle et échantillonnage en C
 
