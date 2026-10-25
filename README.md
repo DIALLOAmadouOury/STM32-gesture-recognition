@@ -1,16 +1,16 @@
-# STM32L475 — Firmware C pour la reconnaissance de gestes (TinyML)
+# Reconnaissance de gestes sur STM32L475 — TinyML et systèmes embarqués
 
-**C embarqué · STM32 HAL · I²C · GPIO · UART · LSM6DSL · X-CUBE-AI**
+**C embarqué · STM32 HAL · LSM6DSL / I²C · Traitement du signal · TinyML / X-CUBE-AI · UART · Python**
 
-**Le cœur du projet est une application firmware développée en C** : piloter un accéléromètre sur I²C, construire une fenêtre temporelle de mesures, préparer les entrées d'un réseau de neurones, exécuter l'inférence sur STM32 et transmettre le résultat sur UART.
+Ce projet personnel réalise la **reconnaissance des gestes L, O et Z**, avec une quatrième classe **BRUIT**, en combinant l'acquisition de mouvements, le traitement de données inertielles, l'entraînement d'un réseau de neurones et son déploiement sur **STM32L475**.
 
-Le prototype reconnaît les mouvements **L**, **O**, **Z** et la classe **BRUIT**. La classification est exécutée **sur le microcontrôleur** ; Python sert à la visualisation.
+Le **firmware développé en C** prend en charge le pilote I²C, l'acquisition des signaux, leur normalisation, l'inférence sur le microcontrôleur et la communication UART. Le projet comprend aussi la **conception du modèle sous TensorFlow/Keras**, son intégration avec X-CUBE-AI et une **interface Python/Tkinter** pour visualiser les résultats.
 
-**[▶ Démonstration vidéo (MP4)](https://raw.githubusercontent.com/DIALLOAmadouOury/STM32-gesture-recognition/main/assets/video_demo.mp4)** · **[Firmware d'inférence](stm32_firmware/Core/Src/gesture_ia.c)** · **[Pilote I²C](stm32_firmware/Core/Src/lsm6dsl.c)**
+**[▶ Vidéo de démonstration (MP4)](https://raw.githubusercontent.com/DIALLOAmadouOury/STM32-gesture-recognition/main/assets/video_demo.mp4)** · **[Code embarqué C](stm32_firmware/Core/Src/gesture_ia.c)** · **[Notebook IA](model_training/Copie%20de%20gesture_ML.ipynb)**
 
-## Développement firmware C — les parties les plus intéressantes
+## Les compétences techniques mises en œuvre
 
-| Compétence demandée en embarqué | Ce qui est réalisé |
+| Domaine | Réalisation concrète |
 | --- | --- |
 | **Driver de capteur / communication I²C** | [`lsm6dsl.c`](stm32_firmware/Core/Src/lsm6dsl.c) : accès aux registres `WHO_AM_I`, `CTRL1_XL`, lecture des six octets d'accélération et conversion des valeurs signées 16 bits en `g` |
 | **Acquisition et traitement en C** | [`gesture_ia.c`](stm32_firmware/Core/Src/gesture_ia.c) : déclenchement par **GPIO PC13**, fenêtre de **100 mesures sur 3 axes**, cadence visée de **20 ms**, normalisation et remplissage d'un tenseur de **300 Float32** |
@@ -19,7 +19,7 @@ Le prototype reconnaît les mouvements **L**, **O**, **Z** et la classe **BRUIT*
 | **Intégration applicative STM32** | [`main.c`](stm32_firmware/Core/Src/main.c) : initialisation HAL, I²C2, USART1, GPIO et boucle principale appelant `Gesture_Task()` |
 | **Outil de supervision** | [`gui_dashboard.py`](pc_scripts/gui_dashboard.py) : lecture série PySerial et interface Tkinter — **côté PC**, distinct du firmware C |
 
-**La difficulté technique :** synchroniser l'acquisition sur le capteur, conserver le même prétraitement qu'à l'entraînement, gérer les buffers du réseau et obtenir une prédiction sans déporter le calcul sur un ordinateur.
+**L'enjeu d'intégration :** relier acquisition et traitement du signal en C, prétraitement cohérent avec l'entraînement Python, gestion des buffers d'inférence, puis affichage sur PC sans y déporter la classification.
 
 Ici, la logique utilise une **boucle principale et des attentes basées sur `HAL_GetTick()`**, pas FreeRTOS. L'intervalle de 20 ms est une **cible logicielle** et non une cadence vérifiée à l'oscilloscope.
 
