@@ -6,7 +6,7 @@ Ce projet personnel met en œuvre une chaîne complète de reconnaissance de ges
 
 Les gestes reconnus sont **L, O, Z**, auxquels s'ajoute une classe **BRUIT**. **L'inférence est effectuée sur le STM32** : le PC ne sert qu'à afficher le résultat.
 
-**[▶ Voir la vidéo de démonstration](assets/video_demo.mp4)** · **[Code d'inférence C](stm32_firmware/Core/Src/gesture_ia.c)** · **[Notebook d'entraînement](model_training/Copie%20de%20gesture_ML.ipynb)**
+**[▶ Lancer la démonstration vidéo (MP4)](https://raw.githubusercontent.com/DIALLOAmadouOury/STM32-gesture-recognition/main/assets/video_demo.mp4)** · **[Code d'inférence C](stm32_firmware/Core/Src/gesture_ia.c)** · **[Notebook d'entraînement](model_training/Copie%20de%20gesture_ML.ipynb)**
 
 ## Le système en quelques chiffres
 
@@ -94,7 +94,9 @@ L'archive des acquisitions brutes `data.zip`, utilisée dans le notebook, n'est 
 
 ## Démonstration et lancement de l'interface
 
-**[Voir la démonstration vidéo (MP4)](assets/video_demo.mp4)**
+**[▶ Regarder la démonstration vidéo (MP4)](https://raw.githubusercontent.com/DIALLOAmadouOury/STM32-gesture-recognition/main/assets/video_demo.mp4)**
+
+Ce lien ouvre le fichier vidéo directement, plutôt que sa page de code GitHub. Selon le navigateur, la lecture peut démarrer dans un lecteur vidéo ou le fichier peut être téléchargé.
 
 Pour lancer l'interface de visualisation sur un PC connecté à la carte :
 
