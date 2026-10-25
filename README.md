@@ -1,106 +1,124 @@
-# Reconnaissance de gestes sur STM32 — TinyML
+# Reconnaissance de gestes sur STM32L475 — TinyML
 
-Reconnaissance de gestes dynamiques **L**, **O** et **Z**, avec une quatrième classe **BRUIT**, à partir des mesures d'accélération d'une carte STM32. L'acquisition, le prétraitement et l'inférence sont réalisés sur le microcontrôleur ; le PC sert uniquement à afficher les résultats par liaison série.
+**Du mouvement de la main à une prédiction exécutée sur microcontrôleur.**
 
-**Technologies :** C, STM32L475, HAL / I²C / UART, LSM6DSL, TensorFlow/Keras, TensorFlow Lite, STM32 X-CUBE-AI et Python.
+Ce projet personnel met en œuvre une chaîne complète de reconnaissance de gestes : acquisition d'un signal inertiel sur STM32, constitution d'une fenêtre temporelle, prétraitement en C, exécution d'un réseau de neurones avec **STM32 X-CUBE-AI**, puis transmission de la prédiction vers une interface Python.
 
-[Voir la démonstration vidéo](assets/video_demo.mp4) · [Consulter le notebook d'entraînement](model_training/Copie%20de%20gesture_ML.ipynb) · [Voir l'interface Python](pc_scripts/gui_dashboard.py)
+Les gestes reconnus sont **L, O, Z**, auxquels s'ajoute une classe **BRUIT**. **L'inférence est effectuée sur le STM32** : le PC ne sert qu'à afficher le résultat.
 
-## Fonctionnement
+**[▶ Voir la vidéo de démonstration](assets/video_demo.mp4)** · **[Code d'inférence C](stm32_firmware/Core/Src/gesture_ia.c)** · **[Notebook d'entraînement](model_training/Copie%20de%20gesture_ML.ipynb)**
+
+## Le système en quelques chiffres
+
+| Cible | Acquisition | Modèle | Calcul embarqué |
+| :--- | :--- | :--- | :--- |
+| **STM32L475**, Cortex-M4 80 MHz | **100 mesures × 3 axes** sur ~2 s, cadence visée **50 Hz** | **300 → 16 → 8 → 4**, 4 classes | **5 072 MACC** indiqués par le code généré X-CUBE-AI |
+
+**Chaîne fonctionnelle**
 
 ```text
-Bouton utilisateur (PC13)
-          |
-          v
-Accéléromètre LSM6DSL -- I²C2 --> Acquisition de 100 mesures (X, Y, Z)
-                                      |
-                                      v
-                              Normalisation / 2,0
-                                      |
-                                      v
-                           Réseau de neurones embarqué
-                             300 → 16 → 8 → 4
-                                      |
-                                      v
-                          Classe prédite + score
-                                      |
-                                      v
-                            UART1 (115 200 bauds)
-                                      |
-                                      v
-                        Interface Python / Tkinter
+Mouvement de la main
+        ↓
+LSM6DSL (accéléromètre 3 axes, ±2 g)
+        ↓  I²C2
+STM32 — acquisition de 100 triplets (X, Y, Z)
+        ↓
+Normalisation en C / 2.0 et vecteur de 300 valeurs
+        ↓
+Réseau MLP embarqué avec X-CUBE-AI → BRUIT / L / O / Z
+        ↓  UART1 — 115 200 bauds
+Application Python / Tkinter : geste prédit + score
 ```
 
-Une pression sur le bouton utilisateur déclenche une courte attente, puis une acquisition d'environ **2 secondes**. Le firmware espace les lectures par une boucle basée sur `HAL_GetTick()`, avec une cible de **20 ms par mesure (50 Hz)**. Il normalise les valeurs `ax`, `ay` et `az` en les divisant par `2.0`, remplit les 300 entrées du réseau et exécute l'inférence avec X-CUBE-AI.
+## Les choix techniques au cœur du projet
 
-Le capteur LSM6DSL est configuré pour une pleine échelle de **±2 g** et un débit interne de **104 Hz**. La cadence de lecture applicative ciblée est différente de ce réglage du capteur. La régularité temporelle effective n'est pas mesurée dans les sources publiées.
+### 1. Acquisition inertielle et échantillonnage en C
 
-Le résultat est transmis sur UART au format `RES:CLASSE:SCORE`, par exemple `RES:Z:92.50`. Les classes sont ordonnées ainsi : `BRUIT`, `L`, `O`, `Z`. Le score est celui de la classe prédite, et non une précision globale de classification.
+Le pilote [`lsm6dsl.c`](stm32_firmware/Core/Src/lsm6dsl.c) communique avec le capteur par **I²C** : lecture de l'identifiant `WHO_AM_I`, configuration de l'accéléromètre à **±2 g / 104 Hz**, lecture des six octets des axes X/Y/Z et conversion des valeurs signées 16 bits en accélération exprimée en `g`.
 
-## Architecture logicielle
+Dans [`gesture_ia.c`](stm32_firmware/Core/Src/gesture_ia.c), une pression sur le bouton **PC13** déclenche l'acquisition. Pour chaque geste, le STM32 recueille **100 triplets** en visant un intervalle de **20 ms**, à l'aide de `HAL_GetTick()`.
 
-| Élément | Rôle | Code |
-| --- | --- | --- |
-| STM32L475 / HAL | Initialisation I²C2, UART1 et bouton utilisateur | [`main.c`](stm32_firmware/Core/Src/main.c) |
-| Pilote LSM6DSL | Identification du capteur, configuration et conversion des accélérations en g | [`lsm6dsl.c`](stm32_firmware/Core/Src/lsm6dsl.c) |
-| Acquisition et inférence | Échantillonnage, normalisation, exécution du réseau et envoi du résultat | [`gesture_ia.c`](stm32_firmware/Core/Src/gesture_ia.c) |
-| Acquisition de données | Module distinct pour enregistrer une fenêtre de données par UART | [`gesture.c`](stm32_firmware/Core/Src/gesture.c) |
-| Réseau embarqué | Fichiers générés par STM32 X-CUBE-AI | [`X-CUBE-AI/App/`](stm32_firmware/X-CUBE-AI/App/) |
-| Supervision sur PC | Lecture série et affichage de la classe et du score | [`gui_dashboard.py`](pc_scripts/gui_dashboard.py) |
+**Point d'ingénierie :** construire un vecteur de caractéristiques de taille fixe à partir de mesures physiques. La cadence de lecture de l'application (visée à 50 Hz) est distincte de la fréquence de sortie configurée sur le capteur (104 Hz).
 
-Le firmware utilise une **boucle principale déclenchée par scrutation du bouton**, et non FreeRTOS. Le module `gesture.c` constitue un outil d'acquisition distinct : la boucle principale appelle `Gesture_Task()`.
+### 2. Prétraitement et inférence directement sur STM32
 
-## Modèle et entraînement
+Chaque triplet est normalisé dans le firmware avant d'être placé dans le tenseur d'entrée :
 
-Le notebook [`model_training/Copie de gesture_ML.ipynb`](model_training/Copie%20de%20gesture_ML.ipynb) documente l'entraînement du classifieur :
+```c
+ai_in_data[i * 3 + 0] = (ai_float)(x / 2.0f);
+ai_in_data[i * 3 + 1] = (ai_float)(y / 2.0f);
+ai_in_data[i * 3 + 2] = (ai_float)(z / 2.0f);
+```
 
-- **4 classes :** BRUIT, L, O et Z ;
-- **120 mouvements** chargés lors de l'exécution enregistrée dans le notebook, soit **30 par classe** ;
-- **100 échantillons × 3 axes** par mouvement, normalisés par `2.0` ;
-- **MLP 300 → 16 → 8 → 4** avec ReLU, dropout pendant l'entraînement et sortie softmax ;
-- export dans [`gesture_model_quantized.tflite`](model_training/gesture_model_quantized.tflite).
+Le réseau dense entraîné sous **TensorFlow/Keras** possède deux couches cachées de **16 et 8 neurones**, puis une sortie **softmax à quatre classes**.
 
-Le notebook applique une optimisation TensorFlow Lite (`tf.lite.Optimize.DEFAULT`) et produit un fichier TFLite d'environ **8,6 Kio**. Cependant, les fichiers C actuellement publiés par X-CUBE-AI déclarent des entrées/sorties **Float32** et utilisent des poids en **Float32** : la présence d'un TFLite optimisé ne démontre pas que l'inférence embarquée utilise exclusivement des opérations INT8.
+L'intégration C utilise **STM32 X-CUBE-AI** avec initialisation du réseau, poids générés, tampons d'entrée/sortie et buffer d'activation statique **aligné sur 32 octets**. Le code produit par X-CUBE-AI indique **5 072 MACC** pour le modèle, sans que cela constitue une mesure de latence.
 
-### Limites de l'évaluation
+- [Implémentation de l'inférence](stm32_firmware/Core/Src/gesture_ia.c)
+- [Réseau C généré par X-CUBE-AI](stm32_firmware/X-CUBE-AI/App/network.c)
+- [Modèle TensorFlow Lite exporté](model_training/gesture_model_quantized.tflite)
 
-L'exécution enregistrée dans le notebook affiche **95,83 % de précision de validation**. Ce résultat est **indicatif** : l'augmentation des données a été effectuée **avant** le découpage entraînement/validation. Des variantes du même mouvement d'origine peuvent donc figurer dans les deux ensembles et rendre l'estimation trop optimiste.
+Le notebook applique une optimisation TensorFlow Lite et exporte un fichier d'environ **8,6 Kio**. Le réseau C actuellement publié utilise des **poids et des E/S Float32** : il ne s'agit pas d'une preuve d'exécution entièrement INT8 sur STM32.
 
-Pour obtenir une mesure fiable, il faudra séparer les mouvements originaux avant toute augmentation et évaluer le modèle sur des acquisitions indépendantes (autres sessions, variations de vitesse, d'orientation ou d'utilisateur).
+### 3. Communication STM32 → Python
 
-Le notebook attend un fichier `data.zip` contenant les dossiers des quatre classes. **Cette archive de données brutes n'est pas incluse dans le dépôt** : l'entraînement n'est donc pas entièrement reproductible avec les seuls fichiers publiés.
+Après l'inférence, le firmware récupère la classe de score maximal et envoie un message série structuré :
 
-## Démonstration
+```text
+START
+END_ACQ
+RES:Z:92.50
+```
 
-[**Voir la vidéo d'exécution sur STM32 et PC**](assets/video_demo.mp4)
+Le protocole repose sur **UART1 à 115 200 bauds**. L'application [`gui_dashboard.py`](pc_scripts/gui_dashboard.py) lit ces messages avec **PySerial**, dans un fil de lecture séparé, et affiche avec **Tkinter** le geste reconnu, son score et l'état de l'acquisition.
 
-Le script [`pc_scripts/gui_dashboard.py`](pc_scripts/gui_dashboard.py) utilise **Tkinter** et **PySerial** pour afficher le geste prédit, son score et l'état d'acquisition. Il reconnaît les messages `START` et `RES:CLASSE:SCORE` envoyés par le firmware publié.
+Cette séparation permet de conserver **la collecte et la décision sur la carte** tout en disposant d'un affichage plus lisible sur ordinateur.
 
-Pour installer la dépendance Python et lancer l'interface depuis la racine du dépôt :
+## Entraînement et expérimentation
+
+Le [notebook Jupyter](model_training/Copie%20de%20gesture_ML.ipynb) documente la préparation des signaux, l'entraînement du MLP, l'augmentation des données par ajout de bruit et l'export TFLite.
+
+| Données de l'exécution enregistrée | Valeur |
+| --- | ---: |
+| Classes | BRUIT, L, O, Z |
+| Enregistrements d'origine chargés | **120** — 30 par classe |
+| Mesures par enregistrement | **100 × 3 axes** |
+| Paramètres du réseau | **4 988** |
+| Taille du fichier TFLite exporté | **environ 8,6 Kio** |
+
+![Courbes d'apprentissage obtenues durant l'entraînement](assets/covergence.png)
+
+*Courbes de l'expérience d'entraînement publiée. Le notebook affiche 95,83 % de précision de validation, mais ce score reste indicatif : les signaux ont été augmentés **avant** la séparation entraînement/validation, ce qui peut introduire des variantes d'un même geste dans les deux ensembles. Une validation fiable demandera de séparer les enregistrements originaux avant augmentation et d'utiliser une session de test indépendante.*
+
+L'archive des acquisitions brutes `data.zip`, utilisée dans le notebook, n'est pas encore publiée.
+
+## Démonstration et lancement de l'interface
+
+**[Voir la démonstration vidéo (MP4)](assets/video_demo.mp4)**
+
+Pour lancer l'interface de visualisation sur un PC connecté à la carte :
 
 ```bash
 python -m pip install pyserial
 python pc_scripts/gui_dashboard.py
 ```
 
-Adapter la constante `PORT_COM = "COM4"` dans le script au port série réellement attribué à la carte. Le débit UART configuré dans le firmware est **115 200 bauds**.
+Adapter le port `PORT_COM` dans le script à celui de la carte (`COM4` dans la version publiée). L'interface s'attend aux messages `START` et `RES:CLASSE:SCORE` du firmware.
 
-Le second script [`pc_scripts/dashboard_ia.py`](pc_scripts/dashboard_ia.py) correspond à une autre version de l'interface, avec affichage des axes. Il attend des messages série différents de ceux produits par `Gesture_Task()` et n'est **pas directement compatible** avec le protocole du firmware présenté ici.
+Le dépôt contient également [`dashboard_ia.py`](pc_scripts/dashboard_ia.py), une autre interface de visualisation des accélérations. Son format de messages UART est différent et elle n'est pas directement compatible avec le firmware d'inférence publié.
 
-## État du dépôt
+## Organisation du dépôt
 
-Les sources C de l'application, le pilote du capteur, le notebook, le modèle TFLite, les fichiers générés du réseau et la vidéo sont disponibles. **Ce dépôt n'est toutefois pas un projet STM32CubeIDE autonome prêt à compiler** : il manque notamment la configuration complète CubeIDE/CubeMX, les dépendances HAL et certains en-têtes générés par X-CUBE-AI. L'intégration dans un projet STM32CubeIDE approprié reste nécessaire pour reconstruire le firmware.
+| Dossier | Contenu |
+| --- | --- |
+| [`stm32_firmware/Core/`](stm32_firmware/Core/) | Acquisition I²C, pilote LSM6DSL, gestion du bouton et inférence en C |
+| [`stm32_firmware/X-CUBE-AI/`](stm32_firmware/X-CUBE-AI/) | Sources du réseau générées par X-CUBE-AI |
+| [`model_training/`](model_training/) | Notebook d'entraînement et modèle TFLite |
+| [`pc_scripts/`](pc_scripts/) | Interface de supervision série en Python |
+| [`assets/`](assets/) | Vidéo de démonstration et illustrations |
 
-Les valeurs de mémoire totale du firmware et de durée d'inférence sur cible ne sont pas annoncées ici, car aucun rapport de compilation complet ni mesure instrumentée n'est fourni dans le dépôt.
-
-### Améliorations envisagées
-
-- Publier un projet STM32CubeIDE complet avec les versions des dépendances.
-- Ajouter l'archive de données ou une procédure publique de collecte reproductible.
-- Refaire l'évaluation avec une séparation des gestes avant augmentation et un jeu de test indépendant.
-- Mesurer les temps d'inférence, l'utilisation Flash/RAM et la cadence réelle d'acquisition sur carte.
-- Harmoniser les protocoles UART utilisés par les interfaces Python.
+**État du projet.** Les principaux modules applicatifs sont publiés, mais pas l'ensemble des fichiers de configuration et dépendances permettant de reconstruire directement un projet STM32CubeIDE autonome. Pour une reproduction complète, il reste à fournir le projet CubeIDE, les données d'entraînement d'origine et des mesures de temps d'inférence/occupation mémoire sur cible.
 
 ---
 
-**Auteur :** Amadou Oury Diallo — projet personnel de systèmes embarqués et TinyML.
+**Amadou Oury Diallo** — Projet personnel en systèmes embarqués, acquisition inertielle et TinyML.
